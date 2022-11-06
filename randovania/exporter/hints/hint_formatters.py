@@ -27,8 +27,8 @@ class TemplatedFormatter(LocationFormatter):
     def format(self, game: RandovaniaGame, pick_hint: PickupHint, hint: Hint, with_color: bool) -> str:
         node_name = self.namer.format_location(
             location=PickupLocation(game, hint.target),
-            with_world=self.with_world or hint.precision.location == HintLocationPrecision.WORLD_ONLY,
-            with_area=hint.precision.location != HintLocationPrecision.WORLD_ONLY,
+            with_world=self.with_world or hint.precision.location.must_include_world,
+            with_area=hint.precision.location.include_area,
             with_color=with_color,
         )
         pickup = pick_hint.pickup_name

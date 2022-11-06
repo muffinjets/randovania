@@ -1,10 +1,11 @@
+import functools
 from random import Random
 
 from randovania.exporter.hints import pickup_hint
 from randovania.exporter.hints.hint_namer import HintNamer
 from randovania.exporter.hints.temple_key_hint import create_temple_key_hint
 from randovania.game_description.game_patches import GamePatches
-from randovania.game_description.hint import Hint, HintType
+from randovania.game_description.hint import Hint, HintType, HintLocationPrecision
 from randovania.interface_common.players_configuration import PlayersConfiguration
 from randovania.layout import filtered_database
 
@@ -43,16 +44,22 @@ class HintExporter:
             assert hint.hint_type == HintType.LOCATION
 
             configuration = all_patches[players_config.player_index].configuration
+            world_list = filtered_database.game_description_for_layout(configuration).world_list
 
             pickup_target = patches.pickup_assignment.get(hint.target)
-            phint = pickup_hint.create_pickup_hint(
-                patches.pickup_assignment,
-                filtered_database.game_description_for_layout(configuration).world_list,
-                hint.precision.item,
-                pickup_target,
-                players_config,
-                hint.precision.include_owner,
+            pickup_hint_creator = functools.partial(
+                pickup_hint.create_pickup_hint,
+                pickup_assignment=patches.pickup_assignment,
+                world_list=world_list,
+                precision=hint.precision.item,
+                players_config=players_config,
+                include_owner=hint.precision.include_owner,
             )
+            phint = pickup_hint_creator(target=pickup_target)
+
+            if hint.precision.include_owner and hint.precision.location == HintLocationPrecision.COUNT_IN_WORLD:
+                pass
+
             return self.namer.format_location_hint(
                 configuration.game,
                 phint,

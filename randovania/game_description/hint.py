@@ -48,6 +48,12 @@ class HintLocationPrecision(Enum):
     # Includes only the world of the location
     WORLD_ONLY = "world-only"
 
+    # Tells how many of the item name is present in the same world
+    COUNT_IN_WORLD = "count-in-world"
+
+    RELATIVE_TO_AREA = "relative-to-area"
+    RELATIVE_TO_INDEX = "relative-to-index"
+
     # Keybearer corpses
     KEYBEARER = "keybearer"
 
@@ -57,13 +63,18 @@ class HintLocationPrecision(Enum):
     # Vanilla Light Suit location
     LIGHT_SUIT_LOCATION = "light-suit-location"
 
-    RELATIVE_TO_AREA = "relative-to-area"
-    RELATIVE_TO_INDEX = "relative-to-index"
-
     MALCO = "malco"
     JENKA = "jenka"
     LITTLE = "mrs-little"
     NUMAHACHI = "numahachi"
+
+    @property
+    def include_area(self) -> bool:
+        return self not in {HintLocationPrecision.WORLD_ONLY, HintLocationPrecision.COUNT_IN_WORLD}
+
+    @property
+    def must_include_world(self) -> bool:
+        return self in {HintLocationPrecision.WORLD_ONLY, HintLocationPrecision.COUNT_IN_WORLD}
 
 
 class HintRelativeAreaName(Enum):
