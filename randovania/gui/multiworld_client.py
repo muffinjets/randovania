@@ -64,6 +64,7 @@ class MultiworldClient(QtCore.QObject):
 
         self.game_connection.GameStateUpdated.connect(self.on_game_state_updated)
         self.network_client.MultiplayerSessionMetaUpdated.connect(self.on_session_meta_update)
+        self.network_client.WorldTrackingRequested.connect(self.on_world_tracking_requested)
         self.network_client.WorldPickupsUpdated.connect(self.on_network_game_updated)
         self.network_client.ConnectionStateUpdated.connect(self.on_connection_state_updated)
 
@@ -91,7 +92,7 @@ class MultiworldClient(QtCore.QObject):
                 collected_locations=self.database.get_locations_to_upload(state.id),
                 inventory=(
                     remote_inventory.inventory_to_encoded_remote(state.current_inventory)
-                    if state.status == GameConnectionStatus.InGame
+                    if state.status == GameConnectionStatus.InGame and self.network_client.should_track_world(state.id)
                     else None
                 ),
                 request_details=state.id not in self._worlds_with_details,
@@ -192,6 +193,8 @@ class MultiworldClient(QtCore.QObject):
                         session_name=world.session_name,
                     )
                 )
+                if world.should_send_inventory:
+                    await self.network_client.on_world_tracking_requested(uid, True)
                 self._worlds_with_details.add(uid)
 
             self._last_sync = ServerSyncRequest(
@@ -266,6 +269,9 @@ class MultiworldClient(QtCore.QObject):
 
         if any_error_cleared:
             self.SyncFailure.emit()
+
+    async def on_world_tracking_requested(self):
+        self.start_server_sync_task()
 
     @asyncSlot(MultiplayerWorldPickups)
     async def on_network_game_updated(self, pickups: MultiplayerWorldPickups):

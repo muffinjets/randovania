@@ -39,16 +39,31 @@ def get_inventory_room_name_raw(world_uuid: uuid.UUID, user_id: int):
     return f"multiplayer-{world_uuid}-{user_id}-inventory"
 
 
+def emit_tracking_requested(sio: ServerApp, world: World, user_id: int, should_track: bool):
+    """Tells any connected clients that there's someone interested in inventory updates for a given world."""
+    sio.sio.emit(
+        signals.WORLD_TRACKING_REQUESTED,
+        (str(world.uuid), user_id, should_track),
+        namespace="/",
+        to=_get_world_room(world),
+        include_self=True,
+    )
+
+
+
 def emit_inventory_update(sio: ServerApp, world: World, user_id: int, inventory: bytes):
     room_name = get_inventory_room_name_raw(world.uuid, user_id)
 
-    sio.sio.emit(
-        signals.WORLD_BINARY_INVENTORY,
-        (str(world.uuid), user_id, inventory),
-        namespace="/",
-        to=room_name,
-        include_self=True,
-    )
+    if sio.is_room_not_empty(room_name):
+        flask_socketio.emit(signals.WORLD_BINARY_INVENTORY,
+                            (str(world.uuid), user_id, inventory),
+                            room=room_name,
+                            namespace="/")
+    else:
+        # No one is listening, tell user to stop sending inventory updates
+        emit_tracking_requested(sio, world, user_id, False)
+
+    # sio.get_server().manager.get_participants("/", )
     # try:
     #     inventory: RemoteInventory = construct_pack.decode(association.inventory, RemoteInventory)
     #     flask_socketio.emit(
@@ -152,13 +167,12 @@ def watch_inventory(sio: ServerApp, world_uid: uuid.UUID, user_id: int, watch: b
         world = World.get_by_uuid(world_uid)
         session_common.get_membership_for(sio, world.session)
         try:
-            association = WorldUserAssociation.get_by_instances(world=world, user=user_id)
+            WorldUserAssociation.get_by_instances(world=world, user=user_id)
         except peewee.DoesNotExist:
             raise error.WorldNotAssociatedError
 
         flask_socketio.join_room(room_name)
-        if association.inventory is not None:
-            emit_inventory_update(sio, world, user_id, association.inventory)
+        emit_tracking_requested(sio, world, user_id, True)
     else:
         # Allow one to stop listening even if you're not allowed to start listening
         flask_socketio.leave_room(room_name)
@@ -205,8 +219,6 @@ def sync_one_world(sio: ServerApp, user: User, uid: uuid.UUID, world_request: Se
         )
 
     if world_request.inventory is not None:
-        association.inventory = world_request.inventory
-        should_update_activity = True
         emit_inventory_update(sio, world, user.id, world_request.inventory)
 
     if world_request.request_details:
@@ -214,6 +226,7 @@ def sync_one_world(sio: ServerApp, user: User, uid: uuid.UUID, world_request: Se
             world_name=world.name,
             session_id=world.session_id,
             session_name=world.session.name,
+            should_send_inventory=sio.is_room_not_empty(session_common.get_inventory_room_name(association)),
         )
 
     # Do this last, as it fails if session is in setup

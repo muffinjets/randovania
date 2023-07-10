@@ -27,6 +27,7 @@ from randovania.network_common.multiplayer_session import (
 )
 
 if TYPE_CHECKING:
+    import uuid
     from pathlib import Path
 
 
@@ -93,6 +94,7 @@ class QtNetworkClient(QWidget, NetworkClient):
     MultiplayerSessionActionsUpdated = Signal(MultiplayerSessionActions)
     MultiplayerAuditLogUpdated = Signal(MultiplayerSessionAuditLog)
 
+    WorldTrackingRequested = Signal()
     WorldPickupsUpdated = Signal(MultiplayerWorldPickups)
     WorldUserInventoryUpdated = Signal(WorldUserInventory)
 
@@ -134,6 +136,10 @@ class QtNetworkClient(QWidget, NetworkClient):
     async def on_multiplayer_session_audit_update(self, audit_log: MultiplayerSessionAuditLog):
         await super().on_multiplayer_session_audit_update(audit_log)
         self.MultiplayerAuditLogUpdated.emit(audit_log)
+
+    async def on_world_tracking_requested(self, world_uid: uuid.UUID, should_track: bool):
+        await super().on_world_tracking_requested(world_uid, should_track)
+        self.WorldTrackingRequested.emit()
 
     async def on_world_pickups_update(self, pickups: MultiplayerWorldPickups):
         await super().on_world_pickups_update(pickups)

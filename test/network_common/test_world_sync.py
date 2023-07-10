@@ -47,6 +47,7 @@ def test_encode_sync_response():
                 world_name="World",
                 session_id=5,
                 session_name="Our Session",
+                should_send_inventory=False,
             ),
         }),
         errors=frozendict({
@@ -58,6 +59,6 @@ def test_encode_sync_response():
 
     assert encoded == (
         b'\x01&\x8e\x8d38\xccJ\x9b\xb7?A\x9f\xad\xa7H\xb7\x05World\n\x01\x0bOur Sessio'
-        b'n\x01\x97U\xef\xc7w\xe4G\x11\x8f\x03\xbaq\xc3f\xef\x81"{"error":{"code"'
+        b'n\x00\x01\x97U\xef\xc7w\xe4G\x11\x8f\x03\xbaq\xc3f\xef\x81"{"error":{"code"'
         b':6,"detail":null}}'
     )

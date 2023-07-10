@@ -126,6 +126,7 @@ class NetworkClient:
     _num_emit_failures: int = 0
     _sessions_interested_in: set[int]
     _tracking_worlds: set[tuple[uuid.UUID, int]]
+    _reporting_worlds: set[uuid.UUID]
     _allow_reporting_username: bool = False
 
     def __init__(self, user_data_dir: Path, configuration: dict):
@@ -147,6 +148,7 @@ class NetworkClient:
         self._current_timeout = _MINIMUM_TIMEOUT
         self._sessions_interested_in = set()
         self._tracking_worlds = set()
+        self._reporting_worlds = set()
 
         self.configuration = configuration
         encoded_address = _hash_address(self.configuration["server_address"])
@@ -160,6 +162,7 @@ class NetworkClient:
         self.sio.on(signals.SESSION_META_UPDATE, self._on_multiplayer_session_meta_update_raw)
         self.sio.on(signals.SESSION_ACTIONS_UPDATE, self._on_multiplayer_session_actions_update_raw)
         self.sio.on(signals.SESSION_AUDIT_UPDATE, self._on_multiplayer_session_audit_update_raw)
+        self.sio.on(signals.WORLD_TRACKING_REQUESTED, self._on_world_tracking_requested_raw)
         self.sio.on(signals.WORLD_PICKUPS_UPDATE, self._on_world_pickups_update_raw)
         self.sio.on(signals.WORLD_BINARY_INVENTORY, self._on_world_user_inventory_raw)
         self.sio.on(signals.WORLD_JSON_INVENTORY, print)
@@ -361,6 +364,14 @@ class NetworkClient:
         self.logger.info("num audit: %d", len(audit_log.entries))
 
     # World Events
+
+    async def _on_world_tracking_requested_raw(self, world_uid: str, user_id: int, should_track: bool):
+        if user_id == self.current_user_id:
+            await self.on_world_tracking_requested(uuid.UUID(world_uid), should_track)
+
+    async def on_world_tracking_requested(self, world_uid: uuid.UUID, should_track: bool):
+        container_lib.ensure_in_set(world_uid, self._reporting_worlds, should_track)
+
     async def _on_world_pickups_update_raw(self, data):
         game = RandovaniaGame(data["game"])
         resource_database = default_database.resource_database_for(game)
@@ -529,3 +540,6 @@ class NetworkClient:
     def allow_reporting_username(self, value):
         self._allow_reporting_username = value
         self._update_reported_username()
+
+    def should_track_world(self, uid: uuid.UUID):
+        return uid in self._reporting_worlds

@@ -218,6 +218,7 @@ async def test_server_sync(client, mocker: MockerFixture):
     uid_2 = uuid.UUID("00000000-0000-1111-0000-000000000000")
     uid_3 = uuid.UUID("000000000000-0000-0000-0000-11111111")
 
+    client.network_client.on_world_tracking_requested = AsyncMock()
 
     request = ServerSyncRequest(worlds=frozendict({
         uid_1: ServerWorldSync(
@@ -253,6 +254,7 @@ async def test_server_sync(client, mocker: MockerFixture):
                     world_name="World 1",
                     session_id=567,
                     session_name="The Session",
+                    should_send_inventory=True,
                 ),
             }),
             errors=frozendict({
@@ -299,6 +301,7 @@ async def test_server_sync(client, mocker: MockerFixture):
     assert client._world_sync_errors == {
         uid_3: error.WorldDoesNotExistError(),
     }
+    client.network_client.on_world_tracking_requested.assert_awaited_once_with(uid_1, True)
 
 
 async def test_on_session_meta_update_not_logged_in(client: MultiworldClient):

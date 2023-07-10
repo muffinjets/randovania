@@ -360,3 +360,26 @@ async def test_on_world_user_inventory_raw(client: NetworkClient):
         user_id=1234,
         inventory={"MyKey": 4},
     ))
+
+
+async def test_on_world_tracking_requested_raw_wrong_user(client: NetworkClient):
+    client._current_user = None
+    await client._on_world_tracking_requested_raw('8b8b9269-1e54-42fe-9e5f-82875ef986e2', 1234, True)
+    assert client._reporting_worlds == set()
+
+
+@pytest.mark.parametrize("was_tracking", [False, True])
+@pytest.mark.parametrize("track", [False, True])
+async def test_on_world_tracking_requested_raw(client: NetworkClient, was_tracking, track):
+    client._current_user = MagicMock()
+    client._current_user.id = 1234
+
+    if was_tracking:
+        client._reporting_worlds.add(uuid.UUID('8b8b9269-1e54-42fe-9e5f-82875ef986e2'))
+
+    await client._on_world_tracking_requested_raw('8b8b9269-1e54-42fe-9e5f-82875ef986e2', 1234, track)
+
+    if track:
+        assert client._reporting_worlds == {uuid.UUID('8b8b9269-1e54-42fe-9e5f-82875ef986e2')}
+    else:
+        assert client._reporting_worlds == set()

@@ -22,6 +22,7 @@ from randovania.server import database
 from randovania.server.multiplayer import world_api
 
 if TYPE_CHECKING:
+    import pytest_mock
     from pytest_mock import MockerFixture
 
 
@@ -279,6 +280,7 @@ def test_world_sync(flask_app, solo_two_world_session, mocker: MockerFixture, mo
                 world_name=w1.name,
                 session_id=session.id,
                 session_name=session.name,
+                should_send_inventory=sio.is_room_not_empty.return_value,
             ),
         }),
         errors=frozendict({
@@ -288,10 +290,8 @@ def test_world_sync(flask_app, solo_two_world_session, mocker: MockerFixture, mo
 
     a1 = database.WorldUserAssociation.get_by_instances(world=w1, user=1234)
     assert a1.connection_state == GameConnectionStatus.InGame
-    assert a1.inventory == b"foo"
     a2 = database.WorldUserAssociation.get_by_instances(world=w2, user=1234)
     assert a2.connection_state == GameConnectionStatus.Disconnected
-    assert a2.inventory is None
 
     sio.store_world_in_session.assert_called_once_with(w1)
     sio.ensure_in_room.assert_called_once_with("world-1179c986-758a-4170-9b07-fe4541d78db0")
@@ -322,7 +322,9 @@ def test_report_disconnect(mock_emit_session_update, solo_two_world_session):
     mock_emit_session_update.assert_called_once_with(database.MultiplayerSession.get_by_id(1))
 
 
-def test_emit_inventory_room(solo_two_world_session):
+def test_emit_inventory_room_not_empty(solo_two_world_session, mocker: pytest_mock.MockerFixture):
+    mock_emit = mocker.patch("flask_socketio.emit")
+
     sio = MagicMock()
     sio.is_room_not_empty.return_value = True
 
@@ -332,10 +334,32 @@ def test_emit_inventory_room(solo_two_world_session):
     world_api.emit_inventory_update(sio, world, 1234, b"foo")
 
     # Assert
-    sio.sio.emit.assert_called_once_with(
+    sio.sio.emit.assert_not_called()
+    mock_emit.assert_called_once_with(
         signals.WORLD_BINARY_INVENTORY,
         (str(world.uuid), 1234, b"foo"),
-        to=f"multiplayer-{world.uuid}-1234-inventory",
+        room=f"multiplayer-{world.uuid}-1234-inventory",
+        namespace="/"
+    )
+
+
+def test_emit_inventory_room_empty(solo_two_world_session, mocker: pytest_mock.MockerFixture):
+    mock_emit = mocker.patch("flask_socketio.emit")
+
+    sio = MagicMock()
+    sio.is_room_not_empty.return_value = False
+
+    world = database.World.get_by_id(1)
+
+    # Run
+    world_api.emit_inventory_update(sio, world, 1234, b"foo")
+
+    # Assert
+    sio.sio.emit.assert_called_once_with(
+        signals.WORLD_TRACKING_REQUESTED,
+        (str(world.uuid), 1234, False),
         namespace="/",
+        to=f"world-{world.uuid}",
         include_self=True,
     )
+    mock_emit.assert_not_called()
